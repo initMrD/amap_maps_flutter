@@ -4,13 +4,23 @@ import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RectF;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 
 import com.amap.api.maps.AMap;
 import com.amap.api.maps.CameraUpdateFactory;
 import com.amap.api.maps.MapView;
+import com.amap.api.maps.model.BitmapDescriptor;
+import com.amap.api.maps.model.BitmapDescriptorFactory;
 import com.amap.api.maps.model.CameraPosition;
 import com.amap.api.maps.model.Marker;
 import com.amap.api.maps.model.MarkerOptions;
@@ -39,6 +49,9 @@ public class AMapController implements Application.ActivityLifecycleCallbacks, P
     public static final String MEHTOD_NAME_AMAP_CHANGE_CAMERA = "amap#changeCamera";
     public static final String MEHTOD_NAME_AMAP_ADD_MARKER = "amap#addMarker";
     public static final String MEHTOD_NAME_AMAP_UPDATE_MARKER = "amap#updateMarker";
+    public static final String MEHTOD_NAME_AMAP_ADD_CLUSTER = "amap#addClusterMarker";
+
+    private Map<Integer, Drawable> mBackDrawAbles = new HashMap<Integer, Drawable>();
 
     private final Context context;
     private final AtomicInteger activityState;
@@ -81,7 +94,6 @@ public class AMapController implements Application.ActivityLifecycleCallbacks, P
 
 
     }
-
 
 
     @Override
@@ -157,6 +169,7 @@ public class AMapController implements Application.ActivityLifecycleCallbacks, P
 
     /**
      * 方法会从flutter中调用
+     *
      * @param methodCall
      * @param result
      */
@@ -200,15 +213,29 @@ public class AMapController implements Application.ActivityLifecycleCallbacks, P
                 // 将marker唯一标识传递回去
                 result.success(null);
                 break;
+
+            case MEHTOD_NAME_AMAP_ADD_CLUSTER:
+                markerOptions = Convert.toMarkerOptions(methodCall.argument("options"));
+                String name = methodCall.argument("name");
+                String count = methodCall.argument("count");
+                String color = methodCall.argument("color");
+                int radius = dp2px(context, 25);
+                BitmapDrawable bitmapDrawable = (BitmapDrawable) getDrawAble(name, count, color, radius);
+                markerOptions.icon(BitmapDescriptorFactory.fromBitmap(bitmapDrawable.getBitmap()));
+                marker = aMap.addMarker(markerOptions);
+                markers.put(marker.getId(), marker);
+
+                // 将marker唯一标识传递回去
+                result.success(marker.getId());
+                break;
             default:
                 result.notImplemented();
         }
     }
 
 
-
     public void changeCamera(CameraPosition cameraPosition, boolean isAnimate) {
-        if(cameraPosition != null) {
+        if (cameraPosition != null) {
             if (isAnimate) {
                 aMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition));
             } else {
@@ -217,7 +244,59 @@ public class AMapController implements Application.ActivityLifecycleCallbacks, P
         }
     }
 
+    public Drawable getDrawAble(String name, String count, String color, int radius) {
+        Drawable bitmapDrawable = mBackDrawAbles.get(1);
+        if (bitmapDrawable == null) {
+            bitmapDrawable = new BitmapDrawable(null, drawCircle(name, count, radius,
+                    Color.parseColor("#" + color)));
+            mBackDrawAbles.put(1, bitmapDrawable);
+        }
 
+        return bitmapDrawable;
+    }
+
+    public int dp2px(Context context, float dpValue) {
+        final float scale = context.getResources().getDisplayMetrics().density;
+        return (int) (dpValue * scale + 0.5f);
+    }
+
+    private Bitmap drawCircle(String name, String count, int radius, int color) {
+        if (name.length() > 4) {
+            name = name.substring(0, 4) + "...";
+        }
+        if (name.length() == 0) {
+            name = " ";
+        }
+        if (count.length() == 0) {
+            count = " ";
+        }
+        int borderWidth = 10;
+        int textSize = radius / 2;
+        int middleLineTop = radius/5;
+
+        Bitmap bitmap = Bitmap.createBitmap((radius + borderWidth) * 2, (radius + borderWidth) * 2,
+                Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        Paint innerPaint = new Paint();
+        Paint outterPaint = new Paint();
+        Paint textPaint = new Paint();
+        RectF outerArc = new RectF(0, 0, (radius + borderWidth) * 2, (radius + borderWidth) * 2);
+        RectF innerArc = new RectF(borderWidth, borderWidth, radius * 2 + borderWidth, radius * 2 + borderWidth);
+        outterPaint.setColor(Color.WHITE);
+        canvas.drawArc(outerArc, 0, 360, true, outterPaint);
+        innerPaint.setColor(color);
+        canvas.drawArc(innerArc, 0, 360, true, innerPaint);
+        textPaint.setColor(Color.WHITE);
+        textPaint.setTextAlign(Paint.Align.CENTER);
+        int nameSize = textSize * 2 / (name.length() > 1 ? name.length() - 1 : name.length());
+        textPaint.setTextSize(nameSize);
+        canvas.drawText(name, outerArc.centerX(), outerArc.centerY() - nameSize / 2 + middleLineTop, textPaint);
+        int countSize = textSize * 3 / count.length();
+        textPaint.setTextAlign(Paint.Align.CENTER);
+        textPaint.setTextSize(countSize);
+        canvas.drawText(count, outerArc.centerX(), outerArc.centerY() + countSize / 2 + 5 + middleLineTop, textPaint);
+        return bitmap;
+    }
 
     /**
      * 注册回调监听
@@ -233,7 +312,7 @@ public class AMapController implements Application.ActivityLifecycleCallbacks, P
 
     @Override
     public void onMapLoaded() {
-        if(methodChannel != null) {
+        if (methodChannel != null) {
             final Map<String, Object> arguments = new HashMap<>(2);
             methodChannel.invokeMethod(METHOD_NAME_CALLBACK_AMAP_ON_MAP_LOADED, arguments);
         }
@@ -241,7 +320,7 @@ public class AMapController implements Application.ActivityLifecycleCallbacks, P
 
     @Override
     public void onCameraChange(CameraPosition position) {
-        if(methodChannel != null) {
+        if (methodChannel != null) {
             final Map<String, Object> arguments = new HashMap<>(2);
             arguments.put("position", Convert.toJson(position));
             arguments.put("isFinish", false);

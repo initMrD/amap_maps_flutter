@@ -75,3 +75,7 @@ example/.flutter-plugins-dependencies
 example/ios/Flutter/.last_build_id
 example/ios/Flutter/flutter_export_environment.sh
 
+android/gradlew
+android/gradlew.bat
+android/gradle/wrapper/gradle-wrapper.jar
+android/gradle/wrapper/gradle-wrapper.properties

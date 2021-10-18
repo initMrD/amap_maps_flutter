@@ -1,6 +1,6 @@
 part of amap_maps_flutter;
 
-class AMapController extends ChangeNotifier{
+class AMapController extends ChangeNotifier {
 
   static const String CHANNEL = "plugins.flutter.maps.amap.com/amap_maps_flutter";
 
@@ -9,6 +9,7 @@ class AMapController extends ChangeNotifier{
   static const String MEHTOD_NAME_AMAP_CHANGE_CAMERA = "amap#changeCamera";
   static const String MEHTOD_NAME_AMAP_ADD_MARKER = "amap#addMarker";
   static const String MEHTOD_NAME_AMAP_UPDATE_MARKER = "amap#updateMarker";
+  static const String MEHTOD_NAME_AMAP_UPDATE_CLUSTER = "amap#addClusterMarker";
 
   final int _id;
 
@@ -67,7 +68,6 @@ class AMapController extends ChangeNotifier{
 
   /// 覆盖物添加
   Future<Marker> addMarker(MarkerOptions options) async {
-
     final MarkerOptions effectiveOptions =
     MarkerOptions.defaultOptions.copyWith(options);
     final String markerId = await _channel.invokeMethod(
@@ -90,13 +90,35 @@ class AMapController extends ChangeNotifier{
     assert(marker != null);
     assert(_markers[marker._id] == marker);
     assert(changes != null);
-    await _channel.invokeMethod(MEHTOD_NAME_AMAP_UPDATE_MARKER, <String, dynamic>{
+    await _channel.invokeMethod(
+        MEHTOD_NAME_AMAP_UPDATE_MARKER, <String, dynamic>{
       'marker': marker._id,
       'options': changes._toJson(),
     });
     marker._options = marker._options.copyWith(changes);
 
     notifyListeners();
+  }
+
+  /// 聚合点添加
+  Future<Marker> addCluster(MarkerOptions options, Color color, String name,
+      String count) async {
+    final MarkerOptions effectiveOptions =
+    MarkerOptions.defaultOptions.copyWith(options);
+    final String markerId = await _channel.invokeMethod(
+      MEHTOD_NAME_AMAP_UPDATE_CLUSTER,
+      <String, dynamic>{
+        'name': name,
+        'count': count,
+        'color': color.value.toRadixString(16),
+        'options': effectiveOptions._toJson(),
+      },
+    );
+    final Marker marker = Marker(markerId, effectiveOptions);
+    _markers[markerId] = marker;
+    notifyListeners();
+
+    return marker;
   }
 
 
